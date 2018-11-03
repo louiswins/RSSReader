@@ -16,14 +16,17 @@ public:
 	~Browser();
 private:
 	void OnSize(int cx, int cy);
+	void OnCommand(int controlId, HWND hwnd, UINT action);
 
+	Browser(HINSTANCE hInst);
 	bool InitControls();
-	HWND DoCreateWindow(HINSTANCE hInst, LPCWSTR wzWindowTitle);
-	void DoRegisterClass(HINSTANCE hInst);
+	HWND DoCreateWindow(LPCWSTR wzWindowTitle);
+	void DoRegisterClass();
 	LRESULT WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam);
 	static LRESULT CALLBACK s_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	static LPCWSTR ClassName;
 
+	HINSTANCE m_hInst;
 	HWND m_hwnd;
 	BrowserWindow* m_browserWindow;
 };
