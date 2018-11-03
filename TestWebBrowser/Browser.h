@@ -29,4 +29,8 @@ private:
 	HINSTANCE m_hInst;
 	HWND m_hwnd;
 	BrowserWindow* m_browserWindow;
+	struct FontDeleter {
+		void operator()(HFONT f) { if (f) { DeleteObject(f); } }
+	};
+	std::unique_ptr<HFONT__, FontDeleter> m_guiFont;
 };

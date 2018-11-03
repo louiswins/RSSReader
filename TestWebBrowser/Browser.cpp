@@ -51,15 +51,21 @@ bool Browser::InitControls()
 		return false;
 	}
 
+	NONCLIENTMETRICS metrics;
+	metrics.cbSize = sizeof(metrics);
+	SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
+	m_guiFont.reset(CreateFontIndirect(&metrics.lfCaptionFont));
+
 	RECT rc;
 	GetClientRect(m_hwnd, &rc);
 	auto MakeButton = [&rc, this](LPCWSTR text, Buttons button) {
-		CreateWindowEx(0, L"button", text, WS_CHILDWINDOW | WS_TABSTOP | WS_VISIBLE | BS_PUSHBUTTON,
+		HWND bHwnd = CreateWindowEx(0, L"button", text, WS_CHILDWINDOW | WS_TABSTOP | WS_VISIBLE | BS_PUSHBUTTON | BS_FLAT,
 			rc.left + ButtonMargin,
 			rc.top + ButtonMargin,
 			ButtonSize,
 			ButtonSize,
 			m_hwnd, (HMENU)button, m_hInst, nullptr);
+		SendMessage(bHwnd, WM_SETFONT, (WPARAM)m_guiFont.get(), MAKELPARAM(TRUE, 0));
 		rc.top += ButtonSize + ButtonMargin;
 	};
 	MakeButton(L"<", BackButton);
