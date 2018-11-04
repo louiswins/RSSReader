@@ -4,16 +4,7 @@
 
 LPCWSTR Browser::ClassName = L"Browser";
 
-enum Buttons
-{
-	BackButton = 1,
-	ForwardButton,
-	StopButton,
-	RefreshButton,
-};
-
-static const int ButtonSize = 50;
-static const int ButtonMargin = 5;
+static const int TreeViewWidth = 150;
 
 
 Browser* Browser::Create(HINSTANCE hInst, LPCWSTR wzWindowTitle)
@@ -58,22 +49,57 @@ bool Browser::InitControls()
 
 	RECT rc;
 	GetClientRect(m_hwnd, &rc);
-	auto MakeButton = [&rc, this](LPCWSTR text, Buttons button) {
-		HWND bHwnd = CreateWindowEx(0, L"button", text, WS_CHILDWINDOW | WS_TABSTOP | WS_VISIBLE | BS_PUSHBUTTON | BS_FLAT,
-			rc.left + ButtonMargin,
-			rc.top + ButtonMargin,
-			ButtonSize,
-			ButtonSize,
-			m_hwnd, (HMENU)button, m_hInst, nullptr);
-		SendMessage(bHwnd, WM_SETFONT, (WPARAM)m_guiFont.get(), MAKELPARAM(TRUE, 0));
-		rc.top += ButtonSize + ButtonMargin;
-	};
-	MakeButton(L"<", BackButton);
-	MakeButton(L">", ForwardButton);
-	MakeButton(L"C", RefreshButton);
-	MakeButton(L"#", StopButton);
 
-	return m_browserWindow->ShowWebPage(L"https://bing.com");
+	HWND tv = CreateWindowEx(0, WC_TREEVIEW, nullptr,
+		WS_CHILD | WS_VISIBLE | TVS_FULLROWSELECT,
+		rc.left,
+		rc.top,
+		TreeViewWidth,
+		(rc.bottom - rc.top),
+		m_hwnd, nullptr, m_hInst, nullptr);
+
+	// Load it up with some fake elements
+	WCHAR name[128];
+	TVINSERTSTRUCT tvis;
+	tvis.hInsertAfter = TVI_LAST;
+	tvis.item.mask = TVIF_TEXT | TVIF_STATE;
+	tvis.item.pszText = name;
+	tvis.item.stateMask = TVIS_EXPANDED | TVIS_BOLD;
+	tvis.item.state = TVIS_EXPANDED | TVIS_BOLD;
+
+	tvis.hParent = nullptr;
+	wcscpy(name, L"The Old New Thing");
+	HTREEITEM rootnode = TreeView_InsertItem(tv, &tvis);
+
+	tvis.hParent = rootnode;
+	tvis.item.state &= ~TVIS_BOLD;
+	wcscpy(name, L"Entry #1");
+	TreeView_InsertItem(tv, &tvis);
+	wcscpy(name, L"Entry #2");
+	TreeView_InsertItem(tv, &tvis);
+	wcscpy(name, L"Entry #3");
+	TreeView_InsertItem(tv, &tvis);
+
+	tvis.hParent = nullptr;
+	tvis.item.state |= TVIS_BOLD;
+	wcscpy(name, L"xkcd What If?");
+	rootnode = TreeView_InsertItem(tv, &tvis);
+
+	tvis.hParent = rootnode;
+	tvis.item.state &= ~TVIS_BOLD;
+	wcscpy(name, L"Entry #1");
+	TreeView_InsertItem(tv, &tvis);
+	wcscpy(name, L"Entry #2");
+	TreeView_InsertItem(tv, &tvis);
+	wcscpy(name, L"Entry #3");
+	TreeView_InsertItem(tv, &tvis);
+	wcscpy(name, L"Entry #4");
+	TreeView_InsertItem(tv, &tvis);
+
+	TreeView_SetIndent(tv, 5);
+	int indent = TreeView_GetIndent(tv);
+
+	return m_browserWindow->ShowWebPage(L"res://TestWebBrowser.exe/about.html");
 }
 
 void Browser::DoRegisterClass()
@@ -133,9 +159,6 @@ LRESULT Browser::WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_SIZE:
 		OnSize(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
-	case WM_COMMAND:
-		OnCommand((int)LOWORD(wParam), (HWND)lParam, (UINT)HIWORD(wParam));
-		return 0;
 	}
 
 	return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
@@ -144,28 +167,9 @@ LRESULT Browser::WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 void Browser::OnSize(int cx, int cy)
 {
 	RECT rc;
-	rc.left = ButtonSize + 2*ButtonMargin;
+	rc.left = TreeViewWidth;
 	rc.right = cx;
 	rc.top = 0;
 	rc.bottom = cy;
 	m_browserWindow->SetRect(rc);
-}
-
-void Browser::OnCommand(int controlId, HWND hwnd, UINT message)
-{
-	switch (controlId)
-	{
-	case BackButton:
-		m_browserWindow->DoPageAction(BrowserWindow::BACK);
-		return;
-	case ForwardButton:
-		m_browserWindow->DoPageAction(BrowserWindow::FORWARD);
-		return;
-	case StopButton:
-		m_browserWindow->DoPageAction(BrowserWindow::STOP);
-		return;
-	case RefreshButton:
-		m_browserWindow->DoPageAction(BrowserWindow::REFRESH);
-		return;
-	}
 }

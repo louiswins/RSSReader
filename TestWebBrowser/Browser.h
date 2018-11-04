@@ -16,7 +16,6 @@ public:
 	~Browser();
 private:
 	void OnSize(int cx, int cy);
-	void OnCommand(int controlId, HWND hwnd, UINT action);
 
 	Browser(HINSTANCE hInst);
 	bool InitControls();
