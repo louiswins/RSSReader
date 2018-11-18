@@ -21,10 +21,10 @@
     <ClInclude Include="Browser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="BrowserWindow.h">
+    <ClInclude Include="OleHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="OleHelpers.h">
+    <ClInclude Include="BrowserOleHost.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -38,10 +38,13 @@
     <ClCompile Include="Browser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="BrowserWindow.cpp">
+    <ClCompile Include="OleHelpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="BrowserWindowStubs.cpp">
+    <ClCompile Include="BrowserOleHostStubs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BrowserOleHost.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

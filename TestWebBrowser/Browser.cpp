@@ -1,47 +1,92 @@
 #include "stdafx.h"
 #include "Browser.h"
-#include "BrowserWindow.h"
+#include "BrowserOleHost.h"
+#include "OleHelpers.h"
 
 LPCWSTR Browser::ClassName = L"Browser";
 
 static const int TreeViewWidth = 150;
 
-
-Browser* Browser::Create(HINSTANCE hInst, LPCWSTR wzWindowTitle)
+#define FAIL_IF_NOT(action) do { HRESULT hr = (action); if (FAILED(hr)) { return nullptr; } } while(0)
+std::unique_ptr<Browser> Browser::Create(HINSTANCE hInst, LPCWSTR wzWindowTitle)
 {
-	auto self = new (std::nothrow) Browser(hInst);
-	if (self && self->DoCreateWindow(wzWindowTitle))
+	std::unique_ptr<Browser> self(new (std::nothrow) Browser(hInst));
+	if (!self || !self->DoCreateWindow(wzWindowTitle))
 	{
-		return self;
+		return nullptr;
 	}
-	delete self;
-	return nullptr;
+	{
+		BrowserOleHost* window;
+		FAIL_IF_NOT(BrowserOleHost::Create(self->m_hwnd, &window));
+		self->m_browserOleHost.reset(window); // transfer ownership, window var is about to go out of scope
+	}
+
+	IOleObjectPtr browserOleObj;
+	{
+		IClassFactoryPtr classFactory;
+		if (FAILED(CoGetClassObject(CLSID_WebBrowser, CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER, nullptr, IID_PPV_ARGS(&classFactory))) || !classFactory)
+		{
+			return nullptr;
+		}
+		FAIL_IF_NOT(classFactory->CreateInstance(nullptr, IID_PPV_ARGS(&browserOleObj)));
+	}
+
+	FAIL_IF_NOT(browserOleObj->QueryInterface(IID_PPV_ARGS(&self->m_webBrowser2)));
+
+	// Give the browser a pointer to its IOleClientSite
+	FAIL_IF_NOT(browserOleObj->SetClientSite(static_cast<IOleClientSite*>(self->m_browserOleHost.get())));
+
+	if (wzWindowTitle)
+	{
+		// We can now call the browser object's SetHostNames function. SetHostNames lets the browser object know our
+		// application's name and the name of the document in which we're embedding the browser. (Since we have no
+		// document name, we'll pass null for the latter). When the browser object is opened for editing, it displays
+		// these names in its titlebar.
+		browserOleObj->SetHostNames(wzWindowTitle, nullptr);
+	}
+
+	// Let browser object know that it is embedded in an OLE container, set the display area of our browser
+	// control the same as our window's size, and actually put the browser object into our window.
+	FAIL_IF_NOT(OleSetContainedObject(browserOleObj, TRUE));
+	FAIL_IF_NOT(browserOleObj->DoVerb(OLEIVERB_SHOW, nullptr, static_cast<IOleClientSite*>(self->m_browserOleHost.get()), 0, self->m_hwnd, nullptr));
+
+	return self;
 }
+#undef FAIL_IF_NOT
 
 Browser::Browser(HINSTANCE hInst) : m_hInst(hInst) {}
 
-void Browser::Show(int nCmdShow)
+void Browser::ShowWindow(int nCmdShow)
 {
-	ShowWindow(m_hwnd, nCmdShow);
+	ShowWebPage(L"res://TestWebBrowser.exe/about.html");
+	::ShowWindow(m_hwnd, nCmdShow);
+}
+
+bool Browser::HandleMessage(LPMSG message)
+{
+	return m_browserOleHost->HandleMessage(message);
 }
 
 Browser::~Browser()
 {
-	if (m_browserWindow)
-	{
-		m_browserWindow->ShutDown();
-		m_browserWindow->Release();
+	if (m_webBrowser2) {
+		// Thank you https://stackoverflow.com/a/14652605!
+		m_webBrowser2->put_Visible(VARIANT_FALSE);
+		m_webBrowser2->Stop();
+		m_webBrowser2->ExecWB(OLECMDID_CLOSE, OLECMDEXECOPT_DONTPROMPTUSER, 0, 0);
+
+		IOleObjectPtr oleBrowser;
+		m_webBrowser2->QueryInterface(IID_PPV_ARGS(&oleBrowser));
+		oleBrowser->DoVerb(OLEIVERB_HIDE, nullptr, static_cast<IOleClientSite*>(m_browserOleHost.get()), 0, m_hwnd, nullptr);
+		oleBrowser->Close(OLECLOSE_NOSAVE);
+		OleSetContainedObject(oleBrowser, FALSE);
+		oleBrowser->SetClientSite(nullptr);
+		(void)CoDisconnectObject(oleBrowser, 0);
 	}
 }
 
-bool Browser::InitControls()
+void Browser::InitControls()
 {
-	HRESULT hr = BrowserWindow::Create(m_hwnd, L"Test Browser", &m_browserWindow);
-	if (FAILED(hr))
-	{
-		return false;
-	}
-
 	NONCLIENTMETRICS metrics;
 	metrics.cbSize = sizeof(metrics);
 	SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
@@ -97,9 +142,6 @@ bool Browser::InitControls()
 	TreeView_InsertItem(tv, &tvis);
 
 	TreeView_SetIndent(tv, 5);
-	int indent = TreeView_GetIndent(tv);
-
-	return m_browserWindow->ShowWebPage(L"res://TestWebBrowser.exe/about.html");
 }
 
 void Browser::DoRegisterClass()
@@ -145,17 +187,17 @@ LRESULT CALLBACK Browser::s_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 LRESULT Browser::WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	LRESULT lres;
-
 	switch (uMsg) {
 	case WM_CREATE:
-		return InitControls() ? 0 : -1;
+		InitControls();
+		return 0;
 	case WM_NCDESTROY:
-		lres = DefWindowProc(m_hwnd, uMsg, wParam, lParam);
+	{
+		LRESULT lres = DefWindowProc(m_hwnd, uMsg, wParam, lParam);
 		SetWindowLongPtr(m_hwnd, GWLP_USERDATA, 0);
-		delete this;
 		PostQuitMessage(0);
 		return lres;
+	}
 	case WM_SIZE:
 		OnSize(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
@@ -166,10 +208,47 @@ LRESULT Browser::WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 void Browser::OnSize(int cx, int cy)
 {
-	RECT rc;
-	rc.left = TreeViewWidth;
-	rc.right = cx;
-	rc.top = 0;
-	rc.bottom = cy;
-	m_browserWindow->SetRect(rc);
+	m_webBrowser2->put_Left(TreeViewWidth);
+	m_webBrowser2->put_Width(cx - TreeViewWidth);
+	m_webBrowser2->put_Top(0);
+	m_webBrowser2->put_Height(cy);
+}
+
+bool Browser::ShowWebPage(LPCWSTR webPageName)
+{
+	_variant_t url = webPageName;
+	return SUCCEEDED(m_webBrowser2->Navigate2(&url, nullptr, nullptr, nullptr, nullptr));
+}
+
+bool Browser::ShowHTMLStr(LPCWSTR string)
+{
+	// Before we can get_Document(), we actually need to have some HTML page loaded in the browser. So,
+	// let's load an empty HTML page. Then, once we have that empty page, we can get_Document() and
+	// write() to stuff our HTML string into it.
+	ShowWebPage(L"about:blank");
+
+	IDispatchPtr dispatch;
+	if (FAILED(m_webBrowser2->get_Document(&dispatch)))
+	{
+		return false;
+	}
+	IHTMLDocument2Ptr htmlDoc2;
+	if (FAILED(dispatch->QueryInterface(IID_PPV_ARGS(&htmlDoc2))))
+	{
+		return false;
+	}
+
+	// Our HTML must be in a SAFEARRAY of VARIANTs containing BSTRs.
+	SafeArrayPtr sfArray = WrapStringInArrayOfVariant(string);
+	if (!sfArray)
+	{
+		return false;
+	}
+
+	htmlDoc2->write(sfArray.get());
+	// Close the document. If we don't do this, subsequent calls to ShowHTMLStr
+	// would append to the current contents of the page.
+	htmlDoc2->close();
+
+	return true;
 }

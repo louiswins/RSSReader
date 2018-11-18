@@ -1,24 +1,29 @@
 #pragma once
 #include <memory>
 #include <Windows.h>
+#include "OleHelpers.h"
 
-class BrowserWindow;
+class BrowserOleHost;
 
 // Browser is loosely based on Raymond Chen's C++ scratch program:
 // https://blogs.msdn.microsoft.com/oldnewthing/20050422-08/?p=35813/
 class Browser
 {
 public:
-	static Browser* Create(HINSTANCE hInst, LPCWSTR wzWindowTitle);
+	static std::unique_ptr<Browser> Create(HINSTANCE hInst, LPCWSTR wzWindowTitle);
 
-	void Show(int nCmdShow);
+	void ShowWindow(int nCmdShow);
+	bool HandleMessage(LPMSG message);
+
+	bool ShowWebPage(LPCWSTR webPageName);
+	bool ShowHTMLStr(LPCWSTR string);
 
 	~Browser();
 private:
 	void OnSize(int cx, int cy);
 
 	Browser(HINSTANCE hInst);
-	bool InitControls();
+	void InitControls();
 	HWND DoCreateWindow(LPCWSTR wzWindowTitle);
 	void DoRegisterClass();
 	LRESULT WndProc(UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -27,7 +32,8 @@ private:
 
 	HINSTANCE m_hInst;
 	HWND m_hwnd;
-	BrowserWindow* m_browserWindow;
+	GenericComPtr<BrowserOleHost> m_browserOleHost;
+	IWebBrowser2Ptr m_webBrowser2;
 	struct FontDeleter {
 		void operator()(HFONT f) { if (f) { DeleteObject(f); } }
 	};

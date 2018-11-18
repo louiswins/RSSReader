@@ -160,14 +160,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Browser.h" />
-    <ClInclude Include="BrowserWindow.h" />
+    <ClInclude Include="BrowserOleHost.h" />
     <ClInclude Include="OleHelpers.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Browser.cpp" />
-    <ClCompile Include="BrowserWindow.cpp" />
-    <ClCompile Include="BrowserWindowStubs.cpp" />
+    <ClCompile Include="BrowserOleHost.cpp" />
+    <ClCompile Include="BrowserOleHostStubs.cpp" />
+    <ClCompile Include="OleHelpers.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

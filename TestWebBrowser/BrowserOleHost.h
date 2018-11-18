@@ -5,26 +5,13 @@
 #include <mshtml.h>
 #include <mshtmhst.h>
 
-// BrowserWindow is loosely based on this article:
+// BrowserOleHost is loosely based on this article:
 // https://www.codeguru.com/cpp/i-n/ieprogram/article.php/c4379/Display-a-Web-Page-in-a-Plain-C-Win32-Application.htm
-class BrowserWindow : public IOleClientSite, public IOleInPlaceFrame, public IOleInPlaceSite, public IDocHostUIHandler
+class BrowserOleHost : public IOleClientSite, public IOleInPlaceFrame, public IOleInPlaceSite, public IDocHostUIHandler
 {
 public:
-	static HRESULT Create(HWND parent, _In_opt_ LPCOLESTR wzApplicationName, _Outptr_ BrowserWindow** ppbh);
-	void ShutDown();
-	void SetRect(RECT rc);
-
-	enum Action {
-		BACK = 0,
-		FORWARD = 1,
-		HOME = 2,
-		SEARCH = 3,
-		REFRESH = 4,
-		STOP = 5,
-	};
-	void DoPageAction(Action action);
-	bool ShowWebPage(LPCWSTR webPageName);
-	bool ShowHTMLStr(LPCWSTR string);
+	static HRESULT Create(HWND parent, _Outptr_ BrowserOleHost** ppboh);
+	bool HandleMessage(LPMSG message);
 
 	// IUnknown
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, LPVOID* ppvObj) override;
@@ -83,9 +70,9 @@ public:
 
 
 private:
-	BrowserWindow(HWND parent, IWebBrowser2* browserObj);
+	BrowserOleHost(HWND parent);
 
 	HWND m_parent;
-	IWebBrowser2Ptr m_webBrowser2;
+	IOleInPlaceActiveObjectPtr m_activeObject;
 	ULONG m_refcount;
 };
